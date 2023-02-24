@@ -1,0 +1,70 @@
+/*
+
+This SQL code computes advanced summary statistics such as population variance and
+quartiles. It also generates frequency distributions with percentages, identifies
+outliers using the interquartile range method, and visualizes data using histograms.
+Additionally, it computes correlations between variables using the Pearson correlation
+coefficient.
+
+
+*/
+
+
+-- Calculate basic summary statistics
+SELECT COUNT(*) AS num_rows,
+       AVG(column1) AS mean_column1,
+       MIN(column1) AS min_column1,
+       MAX(column1) AS max_column1,
+       SUM(column2) AS sum_column2,
+       STDDEV(column2) AS stdev_column2,
+       VAR_POP(column2) AS var_column2,
+       PERCENTILE_DISC(0.25) WITHIN GROUP (ORDER BY column3) AS quartile_1,
+       PERCENTILE_DISC(0.50) WITHIN GROUP (ORDER BY column3) AS median,
+       PERCENTILE_DISC(0.75) WITHIN GROUP (ORDER BY column3) AS quartile_3
+FROM table_name;
+
+-- Generate a frequency distribution
+WITH frequency_table AS (
+  SELECT column3,
+         COUNT(*) AS frequency
+  FROM table_name
+  GROUP BY column3
+)
+SELECT column3,
+       frequency,
+       CAST(frequency AS FLOAT) / SUM(frequency) OVER () AS percentage
+FROM frequency_table
+ORDER BY frequency DESC;
+
+-- Compute cross-tabulations
+SELECT column4,
+       column5,
+       COUNT(*) AS frequency
+FROM table_name
+GROUP BY column4, column5
+ORDER BY column4, column5;
+
+-- Identify outliers using the interquartile range
+WITH quartiles_table AS (
+  SELECT PERCENTILE_DISC(0.25) WITHIN GROUP (ORDER BY column6) AS quartile_1,
+         PERCENTILE_DISC(0.75) WITHIN GROUP (ORDER BY column6) AS quartile_3
+  FROM table_name
+)
+SELECT column6
+FROM table_name
+CROSS JOIN quartiles_table
+WHERE column6 < quartile_1 - 1.5 * (quartile_3 - quartile_1)
+   OR column6 > quartile_3 + 1.5 * (quartile_3 - quartile_1);
+
+-- Visualize data using histograms
+SELECT column7,
+       COUNT(*) AS frequency
+FROM table_name
+GROUP BY column7
+HAVING frequency > 10
+ORDER BY column7;
+
+-- Compute correlations between variables
+SELECT CORR(column8, column9) AS correlation_coefficient
+FROM table_name;
+
