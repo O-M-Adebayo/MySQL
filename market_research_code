@@ -1,0 +1,305 @@
+/* This code fully explores market data to identify 
+/* key information for insights discovery and business
+/* operation and performance oprimization.
+
+
+
+/*
+
+Consumer Data Analysis
+
+*/
+
+/*
+
+NOTE:	Loading the datasets to the workbench directly using "Table Data Import Wizard"
+		will truncate some records. Hence, the datasets are uploaded to the workbench 
+        via LOAD DATA INFILE command as shown below and no record was truncated.
+        
+
+
+-- Creating the tables to import the data to
+
+*/
+-- (1) Customers Table
+CREATE TABLE db.customer_df (
+	ID INT PRIMARY KEY,
+    ProfileID INT,
+    SegmentID INT
+    );
+
+-- (2) Sales Table
+CREATE TABLE db.sales (
+	ID INT PRIMARY KEY NOT NULL,
+    Spend INT NOT NULL
+    );
+  
+-- (3) Versions Table
+CREATE TABLE db.versions (
+	ID INT PRIMARY KEY NOT NULL,
+    Version VARCHAR(1) NOT NULL,
+    Maillnd INT NOT NULL
+    );
+
+-- (4) Department Sales Table
+CREATE TABLE db.dept_data (
+	DepartmentID VARCHAR(1) NOT NULL,
+    Year INT NOT NULL,
+    SegmentID INT NOT NULL,
+    ProfileID INT NOT NULL,
+    Sales INT NOT NULL,
+    Customers INT NOT NULL
+    );
+    
+
+/* ############ Loading the data into the tables ################ */
+
+-- Sales data
+LOAD DATA INFILE 'C:/sales.csv'
+INTO TABLE db.sales
+FIELDS TERMINATED BY ';'
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n'
+IGNORE 1 ROWS
+(ID, Spend);
+
+-- Customers data
+LOAD DATA INFILE 'C:/customers_data.csv'
+INTO TABLE db.customer_df
+FIELDS TERMINATED BY ';'
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n'
+IGNORE 1 ROWS
+(ID, ProfileID, SegmentID);
+
+-- Versions data
+LOAD DATA INFILE 'C:/versions.csv'
+INTO TABLE db.versions
+FIELDS TERMINATED BY ';'
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n'
+IGNORE 1 ROWS
+(ID, Version, Maillnd);
+
+-- Department Data
+LOAD DATA INFILE 'C:/Dept_data.csv'
+INTO TABLE db.dept_data
+FIELDS TERMINATED BY ';'
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n'
+IGNORE 1 ROWS
+(DepartmentID, Year, SegmentID, ProfileID, Sales, Customers);
+
+
+/* 
+
+################ THE ANALYSIS STARTS HERE ###################
+################ Exploratory Data Analysis ##################
+
+*/
+
+-- Get the number of rows in each table
+SELECT *, 
+       table_rows, 
+       ROUND(table_rows / 1000, 2) AS table_rows_in_thousand
+FROM information_schema.tables 
+WHERE table_schema = 'db';
+
+
+-- Preview the data with the first 10 rows of each table
+-- Customers data. For other tables just insert the table name
+SELECT * 
+FROM db.customer_df 
+LIMIT 10;
+
+
+-- Get descriptive statistics for numeric columns
+SELECT Spend, 
+       ROUND(AVG(Spend), 2) AS average, 
+       ROUND(MIN(Spend), 2) AS minimum, 
+       ROUND(MAX(Spend), 2) AS maximum, 
+       ROUND(SUM(Spend), 2) AS sum,
+       ROUND(COUNT(Spend), 2) AS Count              
+FROM db.sales
+GROUP BY Spend;
+
+/*
+
+-- Check for missing values in each column
+-- Insert the column name to check for missing column
+-- NOTE: only two columns have missing values and they were substituted 
+-- by "0" which which implies "NoProfileID" in "ProfileID" column
+-- and "NoContact" in "Maillnd" column
+
+*/
+
+SELECT ID, 
+       COUNT(*) AS count, 
+       ROUND(COUNT(*)/(SELECT COUNT(*) FROM acadia.customer_df), 2) * 100 AS percentage 
+FROM db.customer_df 
+WHERE ID IS NULL 
+GROUP BY ID;
+
+
+/* 
+
+############## Aggregation of "Spend" by other fields ################ 
+
+*/
+
+-- Total Spend by ProfileID
+-- Sales Table is joined to Customer Table
+SELECT c.ProfileID, ROUND(SUM(s.Spend)/1000000, 4) AS 'total spend (million)'
+FROM db.customer_df c
+JOIN sales s ON c.ID = s.ID
+GROUP BY c.ProfileID
+ORDER BY 'total spend (million)' DESC;
+
+-- Total spend by SegmentID
+SELECT c.SegmentID, ROUND(SUM(s.Spend)/1000000, 4) AS 'total spend (million)'
+FROM db.customer_df c
+JOIN sales s ON c.ID = s.ID
+GROUP BY c.SegmentID
+ORDER BY 'total spend (million)' DESC;
+
+-- Total spend by version
+-- Sales Table is joined to Version Table
+SELECT v.Version, ROUND(SUM(s.Spend), 2) AS total_spend
+FROM db.versions v
+JOIN sales s ON v.ID = s.ID
+GROUP BY v.Version
+ORDER BY total_spend DESC;
+
+
+/* ########### Frequency and Percentage Analysis ##########*/
+-- Count of the Version
+SELECT v.Version, COUNT(*) AS Frequency
+FROM db.versions v
+GROUP BY v.Version
+ORDER BY Frequency DESC;
+
+-- Count of the Version (%)
+SELECT Version, 
+       COUNT(*) AS frequency, 
+       ROUND(COUNT(*)/(SELECT COUNT(*) FROM acadia.versions), 3) * 100 AS percentage 
+FROM db.versions 
+GROUP BY Version;
+
+-- Count of the Customer Segment
+SELECT c.SegmentID, COUNT(*) AS No_of_Customers
+FROM db.customer_df c
+GROUP BY c.SegmentID
+ORDER BY No_of_Customers DESC;
+
+-- Count of the Maillnd
+SELECT v.Maillnd, COUNT(*) AS Count
+FROM db.versions v
+GROUP BY v.Maillnd
+ORDER BY Count DESC;
+
+-- Count of the DepartmentID
+SELECT D.DepartmentID, COUNT(*) AS Count
+FROM db.dept_data D
+GROUP BY D.DepartmentID
+ORDER BY Count DESC;
+
+-- Count of the Year
+SELECT D.Year, COUNT(*) AS Count
+FROM db.dept_data D
+GROUP BY D.Year
+ORDER BY Count DESC;
+
+
+/* ########## Aggregation of Sales Table by other fields ########## */
+-- Total sales by SegmentID
+SELECT D.SegmentID, SUM(D.sales)/1000000 AS 'total sales (million)'
+FROM db.dept_data D
+GROUP BY D.SegmentID
+ORDER BY 'total sales (million)' DESC;
+
+-- Total sales by DepartmentID
+SELECT D.DepartmentID, SUM(D.sales)/1000000 AS total_sales_million
+FROM db.dept_data D
+GROUP BY D.DepartmentID
+ORDER BY total_sales_million DESC;
+
+
+/* ########## Aggregation of Customers Table by other fields ########## */
+-- Total customers by SegmentID
+SELECT D.SegmentID, SUM(D.customers)/1000 AS 'total customers (thousand)'
+FROM db.dept_data D
+GROUP BY D.SegmentID
+ORDER BY 'total customers (thousand)' DESC;
+
+-- Total number of customers by DepartmentID
+SELECT D.DepartmentID, SUM(D.customers)/1000 AS total_customer_thousand
+FROM db.dept_data D
+GROUP BY D.DepartmentID
+ORDER BY total_customer_thousand DESC;
+
+
+/* ########## Comparative Analysis ########## */
+-- Total number of customers and sales by DepartmentID
+SELECT D.DepartmentID, SUM(D.customers) AS total_customer, SUM(D.sales) AS total_sales
+FROM db.dept_data D
+GROUP BY D.DepartmentID
+ORDER BY total_sales DESC;
+
+-- Total number of customers and sales by SegmentID
+SELECT D.SegmentID, SUM(D.customers) AS total_customer, SUM(D.sales) AS total_sales
+FROM db.dept_data D
+GROUP BY D.SegmentID
+ORDER BY total_customer, total_sales DESC;
+
+-- Total number of customers and sales by ProfileID
+SELECT D.ProfileID, SUM(D.customers) AS total_customer, SUM(D.sales) AS total_sales
+FROM db.dept_data D
+GROUP BY D.ProfileID
+ORDER BY total_customer, total_sales DESC;
+
+-- Total number of customers and sales by Year
+SELECT D.Year, SUM(D.customers) AS total_customer, SUM(D.sales) AS total_sales
+FROM db.dept_data D
+GROUP BY D.Year
+ORDER BY total_customer, total_sales DESC;
+
+-- Sales and customers distribution by Department by Year
+SELECT D.DepartmentID, D.Year,
+SUM(D.sales)/1000000 AS total_sales_million,
+SUM(D.Customers)/1000 AS total_customers_thousand
+FROM db.dept_data D
+GROUP BY D.DepartmentID, D.Year
+ORDER BY total_sales_million DESC;
+
+-- Customers distribution by Department by Year
+SELECT D.DepartmentID, D.Year,
+SUM(D.sales)/1000000 AS total_sales_million,
+SUM(D.Customers)/1000 AS total_customers_thousand
+FROM db.dept_data D
+GROUP BY D.DepartmentID, D.Year
+ORDER BY total_sales_million DESC;
+
+-- Sales and customers distribution by SegmentID by Year
+SELECT D.SegmentID, D.Year,
+SUM(D.sales)/1000000 AS 'total_sales (R$ million)',
+SUM(D.Customers)/1000 AS 'total_customers (thousand)'
+FROM db.dept_data D
+GROUP BY D.SegmentID, D.Year
+ORDER BY 'total_sales (million)' DESC;
+
+-- Number of Customers by Version and SegmentID
+SELECT v.Version, c.SegmentID, COUNT(v.ID)/1000 AS 'No of Customers (thousand)'
+FROM db.versions v
+JOIN acadia.customer_df c ON v.ID = c.ID
+GROUP BY v.Version, c.SegmentID
+ORDER BY 'No of Customers (thousand)' DESC;
+
+-- Versions distribution by SegmentID | other results
+SELECT c.SegmentID, v.Version, COUNT(v.Version) AS count
+FROM db.customer_df c
+JOIN versions v ON c.ID = v.ID
+GROUP BY c.SegmentID, v.Version
+ORDER BY count DESC;
+
+
+/* ##################### END OF THE ANALYSIS ##################### */
